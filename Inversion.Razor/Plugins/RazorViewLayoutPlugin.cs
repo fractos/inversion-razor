@@ -1,11 +1,14 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-
+using Inversion.Collections;
 using Inversion.Razor.Extensions;
 using Inversion.Razor.Model;
 using Inversion.Web;
+using RazorEngine.Templating;
+using NameOnlyTemplateKey = RazorEngine.Templating.NameOnlyTemplateKey;
 
 namespace Inversion.Razor.Plugins
 {
@@ -44,9 +47,11 @@ namespace Inversion.Razor.Plugins
 
                 string layoutPath = Path.Combine(templateFolder, safeLayoutName);
 
-                RazorEngine.Templating.ITemplate compiledInclude = RazorEngine.Razor.Resolve(layoutName);
+                Type modelType = typeof(DataDictionary<IData>);
 
-                if (compiledInclude == null || TemplateStatus.TemplateIsFresh(layoutPath))
+                ITemplateKey tk = new NameOnlyTemplateKey(layoutName, ResolveType.Layout, null);
+
+                if (!RazorEngine.Engine.Razor.IsTemplateCached(tk, modelType))
                 { // we'll need to look for the template
                     if (File.Exists(layoutPath))
                     {
@@ -55,7 +60,7 @@ namespace Inversion.Razor.Plugins
                         layoutParameters["templatename"] = safeLayoutName;
                         layoutParameters["templatepath"] = layoutPath;
                         layout = ExecutePlugins(context, layoutParameters, layout);
-                        RazorEngine.Razor.Compile(layout, context.ViewSteps.Last.Model.GetType(), layoutName);
+                        RazorEngine.Engine.Razor.Compile(layout, tk, modelType);
                     }
                 }
             }

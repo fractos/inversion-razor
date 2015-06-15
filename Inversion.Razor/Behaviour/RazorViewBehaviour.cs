@@ -2,12 +2,14 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-
+using System.Threading;
+using Inversion.Collections;
 using Inversion.Process;
 using Inversion.Razor.Model;
 using Inversion.Razor.Plugins;
 using Inversion.Web;
 using Inversion.Web.Behaviour;
+using RazorEngine.Templating;
 
 namespace Inversion.Razor.Behaviour
 {
@@ -81,27 +83,27 @@ namespace Inversion.Razor.Behaviour
                     templateParameters.Add("templatefolder", Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "Views", "Razor"));
                     templateParameters.Add("templatepath", Path.Combine(templateParameters["templatefolder"], templateParameters["templatename"]));
 
-                    RazorEngine.Templating.ITemplate compiledTemplate = RazorEngine.Razor.Resolve(templateParameters["templatepath"]);
+                    Type modelType = typeof(DataDictionary<IData>);
 
-                    bool compiled = false;
-                    if (compiledTemplate == null || TemplateStatus.TemplateIsFresh(templateParameters["templatepath"]))
+                    ITemplateKey tk = new NameOnlyTemplateKey(templateParameters["templatepath"], ResolveType.Global, null);
+
+                    bool cached = RazorEngine.Engine.Razor.IsTemplateCached(tk, modelType);
+                    
+                    if(!cached)
                     {
                         if (File.Exists(templateParameters["templatepath"]))
                         {
                             string template = File.ReadAllText(templateParameters["templatepath"]);
                             template = ExecutePlugins(context, templateParameters, template);
-                            RazorEngine.Razor.Compile(template, context.ViewSteps.Last.Model.GetType(), templateParameters["templatepath"]);
-                            compiled = true;
+                            RazorEngine.Engine.Razor.Compile(template, tk, modelType);
                         }
                         else
                         {
                             continue;
                         }
                     }
-                    if (compiledTemplate != null || compiled)
-                    {
-                        content = RazorEngine.Razor.Run(templateParameters["templatepath"], context.ViewSteps.Last.Model);
-                    }
+
+                    content = RazorEngine.Engine.Razor.Run(tk, modelType, context.ViewSteps.Last.Model);
 
                     if (!String.IsNullOrEmpty(content))
                     { // we have content so create the view step and bail

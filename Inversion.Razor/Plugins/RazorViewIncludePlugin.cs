@@ -1,10 +1,15 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Remoting;
 using System.Text.RegularExpressions;
-
+using Inversion.Collections;
 using Inversion.Razor.Extensions;
 using Inversion.Razor.Model;
 using Inversion.Web;
+using RazorEngine.Templating;
+using FullPathTemplateKey = RazorEngine.Templating.FullPathTemplateKey;
+using NameOnlyTemplateKey = RazorEngine.Templating.NameOnlyTemplateKey;
 
 namespace Inversion.Razor.Plugins
 {
@@ -33,14 +38,16 @@ namespace Inversion.Razor.Plugins
 
                     string includePath = Path.Combine(templateFolder, safeIncludeName);
 
-                    RazorEngine.Templating.ITemplate compiledInclude = RazorEngine.Razor.Resolve(includePath);
+                    Type modelType = typeof(DataDictionary<IData>);
 
-                    if (compiledInclude == null || TemplateStatus.TemplateIsFresh(includePath))
+                    ITemplateKey tk = new NameOnlyTemplateKey(includePath, ResolveType.Include, null);
+
+                    if(!RazorEngine.Engine.Razor.IsTemplateCached(tk, modelType))
                     { // we'll need to look for the template
                         if (File.Exists(includePath))
                         {
                             string include = File.ReadAllText(includePath);
-                            RazorEngine.Razor.Compile(include, context.ViewSteps.Last.Model.GetType(), includePath);
+                            RazorEngine.Engine.Razor.Compile(include, tk, modelType);
                         }
                     }
 
