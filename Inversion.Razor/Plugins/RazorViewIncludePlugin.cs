@@ -47,6 +47,12 @@ namespace Inversion.Razor.Plugins
                         if (File.Exists(includePath))
                         {
                             string include = File.ReadAllText(includePath);
+
+                            if (_regexInclude.IsMatch(include))
+                            {
+                                include = this.Execute(context, parameters, include);
+                            }
+
                             RazorEngine.Engine.Razor.Compile(include, tk, modelType);
                         }
                     }
