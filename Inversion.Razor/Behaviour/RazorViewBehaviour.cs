@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using Inversion.Collections;
 using Inversion.Process;
@@ -9,12 +10,14 @@ using Inversion.Razor.Model;
 using Inversion.Razor.Plugins;
 using Inversion.Web;
 using Inversion.Web.Behaviour;
+using log4net;
 using RazorEngine.Templating;
 
 namespace Inversion.Razor.Behaviour
 {
     public class RazorViewBehaviour : WebBehaviour
     {
+        private static readonly ILog _log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         private readonly string _contentType;
         private readonly IList<IRazorViewPlugin> _templatePlugins;
@@ -77,7 +80,7 @@ namespace Inversion.Razor.Behaviour
                     // This is the most immediate way I found to check if a template has been compiled
                     //		but we don't actually use the returned template as I can't find how to get a razor context
                     //		to run against, when I do this code will probably change with a possible early bail here.
-
+                    
                     IDictionary<string, string> templateParameters = new Dictionary<string, string>();
                     templateParameters.Add("templatename", templateName);
                     templateParameters.Add("templatefolder", Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "Views", "Razor"));
@@ -91,20 +94,40 @@ namespace Inversion.Razor.Behaviour
                     
                     if(!cached)
                     {
-                        if (File.Exists(templateParameters["templatepath"]))
+                        string correctedFilename = String.Empty;
+                        if (this.FileExistsCaseInsensitive(templateParameters["templatepath"], out correctedFilename))
                         {
-                            string template = File.ReadAllText(templateParameters["templatepath"]);
-                            template = ExecutePlugins(context, templateParameters, template);
-                            RazorEngine.Engine.Razor.Compile(template, tk, modelType);
+                            string template = File.ReadAllText(correctedFilename);
+                            try
+                            {
+                                template = ExecutePlugins(context, templateParameters, template);
+                                RazorEngine.Engine.Razor.Compile(template, tk, modelType);
+                            }
+                            catch (Exception e)
+                            {
+                                _log.DebugFormat("execute or compile threw: {0}", e.ToString());
+                                continue;
+                            }
                         }
                         else
                         {
+                            //_log.DebugFormat("template did not exist");
                             continue;
                         }
                     }
 
-                    content = RazorEngine.Engine.Razor.Run(tk, modelType, context.ViewSteps.Last.Model);
+                    try
+                    {
+                        _log.DebugFormat("template run for {0}", templateParameters["templatepath"]);
 
+                        content = RazorEngine.Engine.Razor.Run(tk, modelType, context.ViewSteps.Last.Model);
+                    }
+                    catch (Exception e)
+                    {
+                        _log.DebugFormat("template run threw {0}", e.ToString());
+                        break;
+                    }
+                    
                     if (!String.IsNullOrEmpty(content))
                     { // we have content so create the view step and bail
                         context.ViewSteps.CreateStep(templateParameters["templatename"], _contentType, content);
@@ -117,6 +140,36 @@ namespace Inversion.Razor.Behaviour
         private string ExecutePlugins(IWebContext context, IDictionary<string, string> parameters, string source)
         {
             return _templatePlugins.Aggregate(source, (current, plugin) => plugin.Execute(context, parameters, current));
+        }
+
+        private bool FileExistsCaseInsensitive(string fileName, out string correctedFilename)
+        {
+            correctedFilename = fileName;
+
+            string directory = Path.GetDirectoryName(fileName);
+            string fileTitle = Path.GetFileName(fileName);
+            
+            if(Directory.Exists(directory))
+            {
+                string[] files = Directory.GetFiles(directory);
+                
+                if (files.GetUpperBound(0) > 0)
+                {
+                    foreach(string f in files)
+                    {
+                        string ft = Path.GetFileName(f);
+
+                        if (String.Equals(ft, fileTitle, StringComparison.InvariantCultureIgnoreCase))
+                        {
+                            correctedFilename = f;
+
+                            return File.Exists(correctedFilename);
+                        }
+                    }
+                }
+            }
+
+            return false;
         }
     }
 }
