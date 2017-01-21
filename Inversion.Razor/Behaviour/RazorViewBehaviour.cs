@@ -3,15 +3,16 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Threading;
+
+using log4net;
+
+using RazorEngine.Templating;
+
 using Inversion.Collections;
 using Inversion.Process;
-using Inversion.Razor.Model;
 using Inversion.Razor.Plugins;
 using Inversion.Web;
 using Inversion.Web.Behaviour;
-using log4net;
-using RazorEngine.Templating;
 
 namespace Inversion.Razor.Behaviour
 {
@@ -153,7 +154,7 @@ namespace Inversion.Razor.Behaviour
             {
                 string[] files = Directory.GetFiles(directory);
                 
-                if (files.GetUpperBound(0) > 0)
+                if (files.GetLength(0) > 0)
                 {
                     foreach(string f in files)
                     {
